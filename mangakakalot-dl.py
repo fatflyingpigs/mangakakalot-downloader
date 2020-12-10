@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 import requests
 import shutil
 import traceback
@@ -58,32 +57,36 @@ def get_image_from_link(img_link, headers):
 	except:
 		return None
 
-def to_PDF(jpeg_image_folder, path, chapter_title):
+def to_PDF(jpeg_image_folder):
 	if MAKE_CHAPTER_PDF:
 		print("\nAttempting to make chapter PDF")
 		try:
-			made_files = os.listdir(jpeg_image_folder)
+			made_files = [os.path.join(jpeg_image_folder, file) for file in os.listdir(jpeg_image_folder)]
 			files = [Image.open(file).convert("RGB") for file in made_files]
-			pdf_path = os.path.join(path, clean_directory_name(chapter_title) + ".pdf")
+			pdf_path = jpeg_image_folder + ".pdf"
 			files[0].save(
 				pdf_path, save_all=True, append_images=files[1:], resolution=100
 			)
 			print("Made chapter PDF ({} images)\n".format(len(files)))
 		except Exception as e:
 			print(e)
+			if TRACEBACK:
+				traceback.print_exc()
 			print("Failed to make chapter PDF\n")
 
-def to_CBZ(jpeg_image_folder, path, chapter_title):
+def to_CBZ(jpeg_image_folder):
 	if MAKE_CHAPTER_CBZ:
 		print("\nAttempting to make chapter CBZ")
 		try:
 			made_files = os.listdir(jpeg_image_folder)
-			cbz_path = os.path.join(path, clean_directory_name(chapter_title) + ".cbz")
+			cbz_path = jpeg_image_folder + ".cbz"
 			shutil.make_archive(cbz_path, 'zip', jpeg_image_folder)
-			os.rename(cbz_path + '.zip', cbz_path)
+			shutil.move(cbz_path + '.zip', cbz_path)
 			print("Made chapter CBZ ({} images)\n".format(len(made_files)))
 		except Exception as e:
 			print(e)
+			if TRACEBACK:
+				traceback.print_exc()
 			print("Failed to make chapter PDF\n")
 
 def download_chapter(title, chapter):
@@ -101,7 +104,16 @@ def download_chapter(title, chapter):
 	)
 	path = os.path.join(title, clean_directory_name(chapter_title))
 
-	if SKIP_EXISTING_CHAPTERS and os.path.exists(path):
+	proceed = False
+	if SKIP_EXISTING_CHAPTERS:
+		if MAKE_CHAPTER_PDF and not os.path.isfile(path + '.pdf'):
+			proceed = True
+		if MAKE_CHAPTER_CBZ and not os.path.isfile(path + '.cbz'):
+			proceed = True
+		if not MAKE_CHAPTER_PDF and not MAKE_CHAPTER_CBZ and not os.path.exists(path):
+			proceed = True
+
+	if not proceed:
 		print(
 			"Chapter '{chapter_title}' was already found - Skipping".format(
 				chapter_title=chapter_title
@@ -159,8 +171,10 @@ def download_chapter(title, chapter):
 				img_title=img_title, img_link=img_link, img_path=img_path
 			)
 		)
-	to_PDF(path, title, chapter_title)
-	to_CBZ(path, title, chapter_title)
+	to_PDF(path)
+	to_CBZ(path)
+	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
+		shutil.rmtree(path)
 
 def download_chapter_manganelo(title, chapter):
 	a_tag = chapter.find("a")
@@ -177,7 +191,16 @@ def download_chapter_manganelo(title, chapter):
 	)
 	path = os.path.join(title, clean_directory_name(chapter_title))
 
-	if SKIP_EXISTING_CHAPTERS and os.path.exists(path):
+	proceed = False
+	if SKIP_EXISTING_CHAPTERS:
+		if MAKE_CHAPTER_PDF and not os.path.isfile(path + '.pdf'):
+			proceed = True
+		if MAKE_CHAPTER_CBZ and not os.path.isfile(path + '.cbz'):
+			proceed = True
+		if not MAKE_CHAPTER_PDF and not MAKE_CHAPTER_CBZ and not os.path.exists(path):
+			proceed = True
+
+	if not proceed:
 		print(
 			"Chapter '{chapter_title}' was already found - Skipping".format(
 				chapter_title=chapter_title
@@ -235,8 +258,10 @@ def download_chapter_manganelo(title, chapter):
 				img_title=img_title, img_link=img_link, img_path=img_path
 			)
 		)
-	to_PDF(path, title, chapter_title)
-	to_CBZ(path, title, chapter_title)
+	to_PDF(path)
+	to_CBZ(path)
+	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
+		shutil.rmtree(path)
 
 def download_manga_default(link):
 
