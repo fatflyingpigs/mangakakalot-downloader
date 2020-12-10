@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import os
 import requests
-# import traceback
+import shutil
+import traceback
 from bs4 import BeautifulSoup
 
 try:
@@ -18,10 +20,12 @@ DIRCLEANER2 = re.compile(r"\s*:\s*")
 DIRCLEANER3 = re.compile(r"^\.")
 DIRCLEANER4 = re.compile(r"(\.| - )$")
 
+TRACEBACK = True
 SKIP_EXISTING = True
 SKIP_EXISTING_CHAPTERS = False
 SAVE_ID = True
 MAKE_CHAPTER_PDF = True
+MAKE_CHAPTER_CBZ = True
 
 
 def clean_directory_name(path):
@@ -54,6 +58,39 @@ def get_image_from_link(img_link, headers):
 	except:
 		return None
 
+def to_PDF(jpeg_image_folder, path, chapter_title):
+	if MAKE_CHAPTER_PDF:
+		print("")
+		print("Attempting to make chapter PDF")
+		try:
+			made_files = os.listdir(jpeg_image_folder)
+			files = [Image.open(file).convert("RGB") for file in made_files]
+			pdf_path = os.path.join(path, clean_directory_name(chapter_title) + ".pdf")
+			files[0].save(
+				pdf_path, save_all=True, append_images=files[1:], resolution=100
+			)
+			print("Made chapter PDF ({} images)".format(len(files)))
+			print("")
+		except Exception as e:
+			print(e)
+			print("Failed to make chapter PDF")
+			print("")
+
+def to_CBZ(jpeg_image_folder, path, chapter_title):
+	if MAKE_CHAPTER_CBZ:
+		print("")
+		print("Attempting to make chapter CBZ")
+		try:
+			made_files = os.listdir(jpeg_image_folder)
+			cbz_path = os.path.join(path, clean_directory_name(chapter_title) + ".cbz")
+			shutil.make_archive(cbz_path, 'zip', jpeg_image_folder)
+			os.rename(cbz_path + '.zip', cbz_path)
+			print("Made chapter CBZ ({} images)".format(len(made_files)))
+			print("")
+		except Exception as e:
+			print(e)
+			print("Failed to make chapter PDF")
+			print("")
 
 def download_chapter(title, chapter):
 	a_tag = chapter.find("a")
@@ -128,22 +165,8 @@ def download_chapter(title, chapter):
 				img_title=img_title, img_link=img_link, img_path=img_path
 			)
 		)
-	if MAKE_CHAPTER_PDF and made_files:
-		print("")
-		print("Attempting to make chapter PDF")
-		try:
-			files = [Image.open(file).convert("RGB") for file in made_files]
-			pdf_path = os.path.join(path, clean_directory_name(chapter_title) + ".pdf")
-			files[0].save(
-				pdf_path, save_all=True, append_images=files[1:], resolution=100
-			)
-			print("Made chapter PDF ({} images)".format(len(files)))
-			print("")
-		except Exception as e:
-			print(e)
-			print("Failed to make chapter PDF")
-			print("")
-
+	to_PDF(path, title, chapter_title)
+	to_CBZ(path, title, chapter_title)
 
 def download_chapter_manganelo(title, chapter):
 	a_tag = chapter.find("a")
@@ -218,22 +241,8 @@ def download_chapter_manganelo(title, chapter):
 				img_title=img_title, img_link=img_link, img_path=img_path
 			)
 		)
-	if MAKE_CHAPTER_PDF and made_files:
-		print("")
-		print("Attempting to make chapter PDF")
-		try:
-			files = [Image.open(file).convert("RGB") for file in made_files]
-			pdf_path = os.path.join(path, clean_directory_name(chapter_title) + ".pdf")
-			files[0].save(
-				pdf_path, save_all=True, append_images=files[1:], resolution=100
-			)
-			print("Made chapter PDF ({} images)".format(len(files)))
-			print("")
-		except Exception as e:
-			print(e)
-			print("Failed to make chapter PDF")
-			print("")
-
+	to_PDF(path, title, chapter_title)
+	to_CBZ(path, title, chapter_title)
 
 def download_manga_default(link):
 
@@ -372,6 +381,12 @@ if __name__ == "__main__":
 		default=False,
 		action="store_true",
 	)
+	argparser.add_argument(
+		"--make-cbz",
+		help="Make a CBZ for each chapter",
+		default=False,
+		action="store_true",
+	)
 
 	cparsers = argparser.add_subparsers(help="Commands available")
 
@@ -401,6 +416,7 @@ if __name__ == "__main__":
 	SKIP_EXISTING_CHAPTERS = not args.no_ignore_existing_chapters
 	SAVE_ID = not args.no_save_id
 	MAKE_CHAPTER_PDF = args.make_pdf
+	MAKE_CHAPTER_CBZ = args.make_cbz
 
 	if args.command == "download":
 		for manga_id in args.MANGA_ID:
@@ -408,7 +424,8 @@ if __name__ == "__main__":
 				download_manga(manga_id)
 			except Exception as e:
 				print(e)
-				# traceback.print_exc()
+				if TRACEBACK:
+					traceback.print_exc()
 				print("Failed to download manga '{manga_id}'".format(manga_id=manga_id))
 			print(" ---- ")
 
@@ -422,7 +439,8 @@ if __name__ == "__main__":
 				download_manga(manga_id)
 			except Exception as e:
 				print(e)
-				# traceback.print_exc()
+				if TRACEBACK:
+					traceback.print_exc()
 				print("Failed to download manga '{manga_id}'".format(manga_id=manga_id))
 			print(" ---- ")
 
@@ -446,7 +464,8 @@ if __name__ == "__main__":
 					download_manga(url)
 				except Exception as e:
 					print(e)
-					# traceback.print_exc()
+					if TRACEBACK:
+						traceback.print_exc()
 					print("Failed to download manga '{url}'".format(url=url))
 				print(" ---- ")
 	else:
