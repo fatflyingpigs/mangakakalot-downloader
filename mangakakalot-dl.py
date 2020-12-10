@@ -14,10 +14,8 @@ import re
 from datetime import datetime, timezone
 import time
 
-DIRCLEANER1 = re.compile(r"[^\w\-_ .&]")
-DIRCLEANER2 = re.compile(r"\s*:\s*")
-DIRCLEANER3 = re.compile(r"^\.")
-DIRCLEANER4 = re.compile(r"(\.| - )$")
+ntfs_reserved = re.compile(r'[<>:"\/\|?*]') # invalid ntfs characters
+leading_period = re.compile(r"^\.*") # leading period can be seen as a hidden file
 
 TRACEBACK = True
 SKIP_EXISTING = True
@@ -25,13 +23,15 @@ SKIP_EXISTING_CHAPTERS = False
 SAVE_ID = True
 MAKE_CHAPTER_PDF = True
 MAKE_CHAPTER_CBZ = True
+MAKE_CHAPTER_CBZ = True
+PEDANTIC = False
 
 
-def clean_directory_name(path):
-	path = DIRCLEANER2.sub(" - ", path)
-	path = DIRCLEANER1.sub("_", path)
-	path = DIRCLEANER3.sub("_", path)
-	path = DIRCLEANER4.sub("", path)
+def clean_string(path):
+	# print("clean_string: " + path)
+	path = ntfs_reserved.sub("-", path)
+	path = leading_period.sub("", path)
+	# print("new path: " + path)
 	return path
 
 
@@ -42,15 +42,11 @@ def get_image_from_link(img_link, headers):
 		while True:
 			result = requests.get(img_link, headers=headers)
 			if boff_i < len(backoff) and not result.status_code == 200:
-				print(
-					"Bad status code: {status_code} retrying in {retry_in}".format(
-						status_code=result.status_code, retry_in=backoff[boff_i]
-					)
-				)
+				if PEDANTIC:
+					print("Bad status code: {status_code} retrying in {retry_in}".format(
+							status_code=result.status_code, retry_in=backoff[boff_i]))
 				time.sleep(backoff[boff_i])
-				boff_i += (
-					1
-				)  # Eventually throws an index out of bounds exception, so we get out of this look
+				boff_i += (1)  # Eventually throws an index out of bounds exception, so we get out of this look
 			else:
 				result.raise_for_status()
 				return result
@@ -59,15 +55,15 @@ def get_image_from_link(img_link, headers):
 
 def to_PDF(jpeg_image_folder):
 	if MAKE_CHAPTER_PDF:
-		print("\nAttempting to make chapter PDF")
+		if PEDANTIC:
+			print("\nAttempting to make chapter PDF")
 		try:
 			made_files = [os.path.join(jpeg_image_folder, file) for file in os.listdir(jpeg_image_folder)]
 			files = [Image.open(file).convert("RGB") for file in made_files]
 			pdf_path = jpeg_image_folder + ".pdf"
-			files[0].save(
-				pdf_path, save_all=True, append_images=files[1:], resolution=100
-			)
-			print("Made chapter PDF ({} images)\n".format(len(files)))
+			files[0].save(pdf_path, save_all=True, append_images=files[1:], resolution=100)
+			if PEDANTIC:
+				print("Made chapter PDF ({} images)\n".format(len(files)))
 		except Exception as e:
 			print(e)
 			if TRACEBACK:
@@ -76,13 +72,15 @@ def to_PDF(jpeg_image_folder):
 
 def to_CBZ(jpeg_image_folder):
 	if MAKE_CHAPTER_CBZ:
-		print("\nAttempting to make chapter CBZ")
+		if PEDANTIC:
+			print("\nAttempting to make chapter CBZ")
 		try:
 			made_files = os.listdir(jpeg_image_folder)
 			cbz_path = jpeg_image_folder + ".cbz"
 			shutil.make_archive(cbz_path, 'zip', jpeg_image_folder)
 			shutil.move(cbz_path + '.zip', cbz_path)
-			print("Made chapter CBZ ({} images)\n".format(len(made_files)))
+			if PEDANTIC:
+				print("Made chapter CBZ ({} images)\n".format(len(made_files)))
 		except Exception as e:
 			print(e)
 			if TRACEBACK:
@@ -94,15 +92,13 @@ def download_chapter(title, chapter):
 	chapter_link = a_tag.get("href")
 	chapter_title_long = a_tag.get("title")
 	chapter_title = a_tag.text
-	print(
-		"{title} -- {chapter_title_long} -- {chapter_title} -- {chapter_link}".format(
-			title=title,
-			chapter_title_long=chapter_title_long,
-			chapter_title=chapter_title,
-			chapter_link=chapter_link,
-		)
-	)
-	path = os.path.join(title, clean_directory_name(chapter_title))
+	if PEDANTIC:
+		print("{title} -- {chapter_title_long} -- {chapter_title} -- {chapter_link}".format(
+				title=title,
+				chapter_title_long=chapter_title_long,
+				chapter_title=chapter_title,
+				chapter_link=chapter_link))
+	path = os.path.join(title, clean_string(chapter_title))
 
 	proceed = False
 	if SKIP_EXISTING_CHAPTERS:
@@ -114,12 +110,13 @@ def download_chapter(title, chapter):
 			proceed = True
 
 	if not proceed:
-		print(
-			"Chapter '{chapter_title}' was already found - Skipping".format(
-				chapter_title=chapter_title
-			)
-		)
+		if PEDANTIC:
+			print("Chapter '{chapter_title}' was already found - Skipping".format(
+					chapter_title=chapter_title))
 		return
+	else:
+		print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
+					chapter_title=chapter_title))
 
 	result = requests.get(chapter_link)
 	result.raise_for_status()
@@ -140,25 +137,20 @@ def download_chapter(title, chapter):
 		img_title = img.get("title", "").strip(" - Mangakakalot.com")
 		_, extension = os.path.splitext(img_link)
 
-		img_file_path = clean_directory_name(img_title + extension)
+		img_file_path = clean_string(img_title + extension)
 		img_path = os.path.join(path, img_file_path)
 
 		if SKIP_EXISTING and os.path.isfile(img_path):
-			print(
-				"The page {img_title} exists as file {img_path} - SKIPPING".format(
-					img_title=img_title, img_path=img_path
-				)
-			)
+			if PEDANTIC:
+				print("The page {img_title} exists as file {img_path} - SKIPPING".format(
+						img_title=img_title, img_path=img_path))
 			made_files.append(img_path)
 			continue
 
 		result = get_image_from_link(img_link, {'referer': 'https://mangakakalot.com/'})
 		if result is None:
-			print(
-				"Failed to fetch '{img_title}' from '{img_link}'".format(
-					img_title=img_title, img_link=img_link
-				)
-			)
+			print("Failed to fetch '{img_title}' from '{img_link}'".format(
+					img_title=img_title, img_link=img_link))
 			continue
 
 		data = result.content
@@ -166,11 +158,9 @@ def download_chapter(title, chapter):
 		with open(img_path, "wb") as img_file:
 			img_file.write(data)
 		made_files.append(img_path)
-		print(
-			"Downloaded {img_title} from {img_link} and saved as {img_path}".format(
-				img_title=img_title, img_link=img_link, img_path=img_path
-			)
-		)
+		if PEDANTIC:
+			print("Downloaded {img_title} from {img_link} and saved as {img_path}".format(
+					img_title=img_title, img_link=img_link, img_path=img_path))
 	to_PDF(path)
 	to_CBZ(path)
 	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
@@ -181,15 +171,13 @@ def download_chapter_manganelo(title, chapter):
 	chapter_link = a_tag.get("href")
 	chapter_title_long = a_tag.get("title")
 	chapter_title = a_tag.text
-	print(
-		"{title} -- {chapter_title_long} -- {chapter_title} -- {chapter_link}".format(
-			title=title,
-			chapter_title_long=chapter_title_long,
-			chapter_title=chapter_title,
-			chapter_link=chapter_link,
-		)
-	)
-	path = os.path.join(title, clean_directory_name(chapter_title))
+	if PEDANTIC:
+		print("{title} -- {chapter_title_long} -- {chapter_title} -- {chapter_link}".format(
+				title=title,
+				chapter_title_long=chapter_title_long,
+				chapter_title=chapter_title,
+				chapter_link=chapter_link))
+	path = os.path.join(title, clean_string(chapter_title))
 
 	proceed = False
 	if SKIP_EXISTING_CHAPTERS:
@@ -201,12 +189,13 @@ def download_chapter_manganelo(title, chapter):
 			proceed = True
 
 	if not proceed:
-		print(
-			"Chapter '{chapter_title}' was already found - Skipping".format(
-				chapter_title=chapter_title
-			)
-		)
+		if PEDANTIC:
+			print("Chapter '{chapter_title}' was already found - Skipping".format(
+					chapter_title=chapter_title))
 		return
+	else:
+		print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
+					chapter_title=chapter_title))
 
 	result = requests.get(chapter_link)
 	result.raise_for_status()
@@ -227,25 +216,20 @@ def download_chapter_manganelo(title, chapter):
 		img_title = img.get("title", "").strip(" - MangaNelo.com")
 		_, extension = os.path.splitext(img_link)
 
-		img_file_path = clean_directory_name(img_title + extension)
+		img_file_path = clean_string(img_title + extension)
 		img_path = os.path.join(path, img_file_path)
 
 		if SKIP_EXISTING and os.path.isfile(img_path):
-			print(
-				"The page {img_title} exists as file {img_path} - SKIPPING".format(
-					img_title=img_title, img_path=img_path
-				)
-			)
+			if PEDANTIC:
+				print("The page {img_title} exists as file {img_path} - SKIPPING".format(
+						img_title=img_title, img_path=img_path))
 			made_files.append(img_path)
 			continue
 
 		result = get_image_from_link(img_link, {'referer': 'https://manganelo.com/'})
 		if result is None:
-			print(
-				"Failed to fetch '{img_title}' from '{img_link}'".format(
-					img_title=img_title, img_link=img_link
-				)
-			)
+			print("Failed to fetch '{img_title}' from '{img_link}'".format(
+					img_title=img_title, img_link=img_link))
 			continue
 
 		data = result.content
@@ -253,11 +237,9 @@ def download_chapter_manganelo(title, chapter):
 		with open(img_path, "wb") as img_file:
 			img_file.write(data)
 		made_files.append(img_path)
-		print(
-			"Downloaded {img_title} from {img_link} and saved as {img_path}".format(
-				img_title=img_title, img_link=img_link, img_path=img_path
-			)
-		)
+		if PEDANTIC:
+			print("Downloaded {img_title} from {img_link} and saved as {img_path}".format(
+					img_title=img_title, img_link=img_link, img_path=img_path))
 	to_PDF(path)
 	to_CBZ(path)
 	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
@@ -283,7 +265,7 @@ def download_manga_default(link):
 
 	# Might be hacky ?
 	title = soup.find_all("span", {"itemprop": "title"})[-1].text
-	title = clean_directory_name(title)
+	title = clean_string(title)
 
 	if not os.path.exists(title):
 		os.mkdir(title)
@@ -301,7 +283,8 @@ Last run: {last_run}
 		with open(os.path.join(title, "README.mkdl.md"), "w") as readme:
 			readme.write(data)
 
-	print("Downloading title '{title}'".format(title=title))
+	if PEDANTIC:
+		print("Downloading title '{title}'".format(title=title))
 	chapter_list = soup.find("div", {"class": "chapter-list"}).find_all(
 		"div", {"class": "row"}
 	)[::-1]
@@ -328,7 +311,7 @@ def download_manga_manganelo(link):
 
 	# Might be hacky ?
 	title = soup.find("div", {"class": "story-info-right"}).find("h1").text
-	title = clean_directory_name(title)
+	title = clean_string(title)
 
 	if not os.path.exists(title):
 		os.mkdir(title)
@@ -346,7 +329,8 @@ Last run: {last_run}
 		with open(os.path.join(title, "README.mkdl.md"), "w") as readme:
 			readme.write(data)
 
-	print("Downloading title '{title}'".format(title=title))
+	if PEDANTIC:
+		print("Downloading title '{title}'".format(title=title))
 	chapter_list = soup.find("ul", {"class": "row-content-chapter"}).find_all("li")[
 		::-1
 	]
@@ -395,14 +379,20 @@ if __name__ == "__main__":
 		default=os.getcwd(),
 	)
 	argparser.add_argument(
-		"--make-pdf",
+		"--pdf",
 		help="Make a PDF for each chapter (Requires Pillow)",
 		default=False,
 		action="store_true",
 	)
 	argparser.add_argument(
-		"--make-cbz",
+		"--cbz",
 		help="Make a CBZ for each chapter",
+		default=False,
+		action="store_true",
+	)
+	argparser.add_argument(
+		"--p", "--pedantic",
+		help="Show pedantic output. Will print messages for each image and each chapter.",
 		default=False,
 		action="store_true",
 	)
@@ -434,8 +424,9 @@ if __name__ == "__main__":
 	SKIP_EXISTING = not args.redownload
 	SKIP_EXISTING_CHAPTERS = not args.no_ignore_existing_chapters
 	SAVE_ID = not args.no_save_id
-	MAKE_CHAPTER_PDF = args.make_pdf
-	MAKE_CHAPTER_CBZ = args.make_cbz
+	MAKE_CHAPTER_PDF = args.pdf
+	MAKE_CHAPTER_CBZ = args.cbz
+	PEDANTIC = args.p
 
 	if args.command == "download":
 		for manga_id in args.MANGA_ID:
