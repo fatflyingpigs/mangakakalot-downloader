@@ -60,8 +60,7 @@ def get_image_from_link(img_link, headers):
 
 def to_PDF(jpeg_image_folder, path, chapter_title):
 	if MAKE_CHAPTER_PDF:
-		print("")
-		print("Attempting to make chapter PDF")
+		print("\nAttempting to make chapter PDF")
 		try:
 			made_files = os.listdir(jpeg_image_folder)
 			files = [Image.open(file).convert("RGB") for file in made_files]
@@ -69,28 +68,23 @@ def to_PDF(jpeg_image_folder, path, chapter_title):
 			files[0].save(
 				pdf_path, save_all=True, append_images=files[1:], resolution=100
 			)
-			print("Made chapter PDF ({} images)".format(len(files)))
-			print("")
+			print("Made chapter PDF ({} images)\n".format(len(files)))
 		except Exception as e:
 			print(e)
-			print("Failed to make chapter PDF")
-			print("")
+			print("Failed to make chapter PDF\n")
 
 def to_CBZ(jpeg_image_folder, path, chapter_title):
 	if MAKE_CHAPTER_CBZ:
-		print("")
-		print("Attempting to make chapter CBZ")
+		print("\nAttempting to make chapter CBZ")
 		try:
 			made_files = os.listdir(jpeg_image_folder)
 			cbz_path = os.path.join(path, clean_directory_name(chapter_title) + ".cbz")
 			shutil.make_archive(cbz_path, 'zip', jpeg_image_folder)
 			os.rename(cbz_path + '.zip', cbz_path)
-			print("Made chapter CBZ ({} images)".format(len(made_files)))
-			print("")
+			print("Made chapter CBZ ({} images)\n".format(len(made_files)))
 		except Exception as e:
 			print(e)
-			print("Failed to make chapter PDF")
-			print("")
+			print("Failed to make chapter PDF\n")
 
 def download_chapter(title, chapter):
 	a_tag = chapter.find("a")
