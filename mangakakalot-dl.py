@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import requests
+# import traceback
 from bs4 import BeautifulSoup
 
 try:
@@ -31,12 +32,12 @@ def clean_directory_name(path):
 	return path
 
 
-def get_image_from_link(img_link):
+def get_image_from_link(img_link, headers):
 	try:
 		backoff = [1, 2, 4, 8]
 		boff_i = 0
 		while True:
-			result = requests.get(img_link)
+			result = requests.get(img_link, headers=headers)
 			if boff_i < len(backoff) and not result.status_code == 200:
 				print(
 					"Bad status code: {status_code} retrying in {retry_in}".format(
@@ -108,7 +109,7 @@ def download_chapter(title, chapter):
 			made_files.append(img_path)
 			continue
 
-		result = get_image_from_link(img_link)
+		result = get_image_from_link(img_link, {'referer': 'https://mangakakalot.com/'})
 		if result is None:
 			print(
 				"Failed to fetch '{img_title}' from '{img_link}'".format(
@@ -198,7 +199,7 @@ def download_chapter_manganelo(title, chapter):
 			made_files.append(img_path)
 			continue
 
-		result = get_image_from_link(img_link)
+		result = get_image_from_link(img_link, {'referer': 'https://manganelo.com/'})
 		if result is None:
 			print(
 				"Failed to fetch '{img_title}' from '{img_link}'".format(
@@ -407,6 +408,7 @@ if __name__ == "__main__":
 				download_manga(manga_id)
 			except Exception as e:
 				print(e)
+				# traceback.print_exc()
 				print("Failed to download manga '{manga_id}'".format(manga_id=manga_id))
 			print(" ---- ")
 
@@ -420,6 +422,7 @@ if __name__ == "__main__":
 				download_manga(manga_id)
 			except Exception as e:
 				print(e)
+				# traceback.print_exc()
 				print("Failed to download manga '{manga_id}'".format(manga_id=manga_id))
 			print(" ---- ")
 
@@ -443,6 +446,7 @@ if __name__ == "__main__":
 					download_manga(url)
 				except Exception as e:
 					print(e)
+					# traceback.print_exc()
 					print("Failed to download manga '{url}'".format(url=url))
 				print(" ---- ")
 	else:
