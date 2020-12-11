@@ -350,6 +350,11 @@ Last run: {last_run}
 
 
 def download_manga(link):
+	if link.startswith('#') or link.startswith(';') or link.startswith('//'):
+		if PEDANTIC:
+			print("Skipping commented link: {link}".format(link=link))
+		return
+
 	if "manganelo.com" in link:
 		return download_manga_manganelo(link)
 	else:
