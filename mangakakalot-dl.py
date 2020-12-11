@@ -14,8 +14,10 @@ import re
 from datetime import datetime, timezone
 import time
 
-ntfs_reserved = re.compile(r'[<>:"\/\|?*]') # invalid ntfs characters
 leading_period = re.compile(r"^\.*") # leading period can be seen as a hidden file
+ntfs_reserved_remove = re.compile(r'["\/\?*]') # invalid ntfs characters
+double_space = re.compile(r"\s\s+") # leading period can be seen as a hidden file
+trailing_period = re.compile(r"\.+$") # trailing periods have issues with the Win32 api of ntfs
 
 TRACEBACK = True
 SKIP_EXISTING = True
@@ -29,8 +31,15 @@ PEDANTIC = False
 
 def clean_string(path):
 	# print("clean_string: " + path)
-	path = ntfs_reserved.sub("-", path)
+	path = path.replace('<', '(')
+	path = path.replace('>', ')')
+	path = path.replace(':', ' - ')
+	path = path.replace('|', ' - ')
 	path = leading_period.sub("", path)
+	path = ntfs_reserved_remove.sub("", path)
+	path = double_space.sub(" ", path)
+	path = trailing_period.sub("", path)
+	path = path.strip()
 	# print("new path: " + path)
 	return path
 
@@ -62,8 +71,8 @@ def to_PDF(jpeg_image_folder):
 			files = [Image.open(file).convert("RGB") for file in made_files]
 			pdf_path = jpeg_image_folder + ".pdf"
 			files[0].save(pdf_path, save_all=True, append_images=files[1:], resolution=100)
-			if PEDANTIC:
-				print("Made chapter PDF ({} images)\n".format(len(files)))
+			print("\tMade chapter PDF for: {jpeg_image_folder} ({num} images)".format(
+				jpeg_image_folder=jpeg_image_folder, num=len(made_files)))
 		except Exception as e:
 			print(e)
 			if TRACEBACK:
@@ -79,8 +88,8 @@ def to_CBZ(jpeg_image_folder):
 			cbz_path = jpeg_image_folder + ".cbz"
 			shutil.make_archive(cbz_path, 'zip', jpeg_image_folder)
 			shutil.move(cbz_path + '.zip', cbz_path)
-			if PEDANTIC:
-				print("Made chapter CBZ ({} images)\n".format(len(made_files)))
+			print("\tMade chapter CBZ for: {jpeg_image_folder} ({num} images)".format(
+				jpeg_image_folder=jpeg_image_folder, num=len(made_files)))
 		except Exception as e:
 			print(e)
 			if TRACEBACK:
@@ -115,7 +124,8 @@ def download_chapter(title, chapter):
 					chapter_title=chapter_title))
 		return
 	else:
-		print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
+		if PEDANTIC:
+			print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
 					chapter_title=chapter_title))
 
 	result = requests.get(chapter_link)
@@ -163,7 +173,8 @@ def download_chapter(title, chapter):
 					img_title=img_title, img_link=img_link, img_path=img_path))
 	to_PDF(path)
 	to_CBZ(path)
-	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
+	if not MAKE_CHAPTER_PDF and not MAKE_CHAPTER_CBZ:
+		print("\tChapter '{chapter_title}' was download".format(chapter_title=chapter_title))
 		shutil.rmtree(path)
 
 def download_chapter_manganelo(title, chapter):
@@ -194,7 +205,8 @@ def download_chapter_manganelo(title, chapter):
 					chapter_title=chapter_title))
 		return
 	else:
-		print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
+		if PEDANTIC:
+			print("Undownloaded chapter '{chapter_title}' was found - Attempting Download".format(
 					chapter_title=chapter_title))
 
 	result = requests.get(chapter_link)
@@ -242,7 +254,8 @@ def download_chapter_manganelo(title, chapter):
 					img_title=img_title, img_link=img_link, img_path=img_path))
 	to_PDF(path)
 	to_CBZ(path)
-	if MAKE_CHAPTER_PDF or MAKE_CHAPTER_CBZ:
+	if not MAKE_CHAPTER_PDF and not MAKE_CHAPTER_CBZ:
+		print("\tChapter '{chapter_title}' was download".format(chapter_title=chapter_title))
 		shutil.rmtree(path)
 
 def download_manga_default(link):
@@ -283,8 +296,7 @@ Last run: {last_run}
 		with open(os.path.join(title, "README.mkdl.md"), "w") as readme:
 			readme.write(data)
 
-	if PEDANTIC:
-		print("Downloading title '{title}'".format(title=title))
+	print("Downloading title '{title}'".format(title=title))
 	chapter_list = soup.find("div", {"class": "chapter-list"}).find_all(
 		"div", {"class": "row"}
 	)[::-1]
@@ -329,8 +341,7 @@ Last run: {last_run}
 		with open(os.path.join(title, "README.mkdl.md"), "w") as readme:
 			readme.write(data)
 
-	if PEDANTIC:
-		print("Downloading title '{title}'".format(title=title))
+	print("Downloading title '{title}'".format(title=title))
 	chapter_list = soup.find("ul", {"class": "row-content-chapter"}).find_all("li")[
 		::-1
 	]
@@ -401,19 +412,14 @@ if __name__ == "__main__":
 
 	cparser = cparsers.add_parser("download")
 	cparser.set_defaults(command="download")
-	cparser.add_argument(
-		"MANGA_ID", help="The mangakakalot manga id (or just the whole url)", nargs="+"
-	)
+	cparser.add_argument("MANGA_ID", help="The mangakakalot manga id (or just the whole url)", nargs="+")
 
 	cparser = cparsers.add_parser("resume-all")
 	cparser.set_defaults(command="resume-all")
 
 	cparser = cparsers.add_parser("download-list")
 	cparser.set_defaults(command="download-list")
-	cparser.add_argument(
-		"LIST",
-		help="The file containing newline delimited mangakakalot manga ids (or just the whole url)",
-	)
+	cparser.add_argument("LIST", help="The file containing newline delimited mangakakalot manga ids (or just the whole url)")
 
 	args = argparser.parse_args()
 
@@ -465,11 +471,8 @@ if __name__ == "__main__":
 					title = title[title.find("# ") + 2 :]
 					url = readme_file.readline().strip()
 					url = url[url.find("https://") :]
-					print(
-						"Found manga that can be resumed: '{title}' -- using url: {url}".format(
-							title=title, url=url
-						)
-					)
+					print("Found manga that can be resumed: '{title}' -- using url: {url}".format(
+							title=title, url=url))
 				try:
 					download_manga(url)
 				except Exception as e:
