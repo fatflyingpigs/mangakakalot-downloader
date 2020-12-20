@@ -9,8 +9,26 @@ Dir | Rename-Item -NewName { $_.Name -replace "_","-" }
 # used to fix files downloaded using redsquirrel87's MangaDownloader.exe 
 ^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$
 
-Get-ChildItem -Recurse  | Where-Object { $_.Name -match '^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$'} 
+Get-ChildItem -Recurse | Where-Object { $_.Name -match '^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$'} 
 
 Get-ChildItem -Recurse | Where-Object { $_.Name -match '^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$'} | `
 Rename-Item -NewName { $_.Name -replace '^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$', '$1$2 - $4' }
 
+# used to find potential duplicates. compares first 10 characters
+Get-ChildItem -Recurse  | Where-Object { $_.Name -match '^(Vol\.\d{1,2}\s)?(Chapter \d{1,3}\.?\d{0,2}?)([_-]\s?|\s_\s)(.*\.cbz)$'} 
+
+$i = ""
+$j = ""
+Get-ChildItem $root -Directory | `
+	ForEach-Object { 
+		$i = $_.Name
+		Write-Host "i: " + $i + "\tj: " + $j
+
+		IF (Compare-Object $i $j){
+			Write-Host "strings are different"
+		}ELSE{
+			Write-Host "strings are equal"
+		}
+
+		$j = "test" $_.Name
+	}
